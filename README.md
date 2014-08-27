@@ -1,6 +1,7 @@
 # AMD Template Plugin
 
-Uses Underscore.js micro-templates implementation.
+<s>Uses Underscore.js micro-templates implementation.</s>
+Changed implementation to a new one.
 
 As modules, templates are stand-alone files (not in the DOM…) and they are served already **compiled**.
 
