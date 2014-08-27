@@ -1,9 +1,11 @@
 /**
  * Adapted from the official plugin text.js
  *
- * Uses UnderscoreJS micro-templates : http://documentcloud.github.com/underscore/#template
- * @author Julien Cabanès <julien@zeeagency.com>
- * @version 0.2
+ * <s>Uses UnderscoreJS micro-templates : http://documentcloud.github.com/underscore/#template</s>
+ * Changed to use my own template implementation.
+ * @author Robin Fu <perfectrobin@sina.com> 
+ * @previousauthor Julien Cabanès <julien@zeeagency.com>
+ * @version 0.3
  * 
  * @license RequireJS text 0.24.0 Copyright (c) 2010-2011, The Dojo Foundation All Rights Reserved.
  * Available via the MIT or new BSD license.
@@ -24,40 +26,50 @@
 		
 		buildMap = [],
 		
-		templateSettings = {
-			evaluate	: /<%([\s\S]+?)%>/g,
-			interpolate : /<%=([\s\S]+?)%>/g
+		escapes = {
+			"'":      "'",
+			'\\':     '\\',
+			'\r':     'r',
+			'\n':     'n',
+			'\t':     't',
+			'\u2028': 'u2028',
+			'\u2029': 'u2029'
 		},
+		escaper = /\\|'|\r|\n|\t|\u2028|\u2029/g;
 
-		/**
-		 * JavaScript micro-templating, similar to John Resig's implementation.
-		 * Underscore templating handles arbitrary delimiters, preserves whitespace,
-		 * and correctly escapes quotes within interpolated code.
-		 */
-		template = function(str, data) {
-			var c  = templateSettings;
-			var tmpl = 'var __p=[],print=function(){__p.push.apply(__p,arguments);};' +
-				'with(obj||{}){__p.push(\'' +
-				str.replace(/\\/g, '\\\\')
-					.replace(/'/g, "\\'")
-					.replace(c.interpolate, function(match, code) {
-					return "'," + code.replace(/\\'/g, "'") + ",'";
-					})
-					.replace(c.evaluate || null, function(match, code) {
-					return "');" + code.replace(/\\'/g, "'")
-										.replace(/[\r\n\t]/g, ' ') + "; __p.push('";
-					})
-					.replace(/\r/g, '')
-					.replace(/\n/g, '')
-					.replace(/\t/g, '')
-					+ "');}return __p.join('');";
-			return tmpl;
-			
-			/** /
-			var func = new Function('obj', tmpl);
-			return data ? func(data) : func;
-			/**/
-		};
+		function esc(s){
+			return s.replace(escaper,  function(match) { return '\\' + escapes[match]; });
+		}
+
+		function template(template){
+			var start = '<%', end = '%>';
+			var scripts = ['var _resu_lt = [];\nwith(obj){'];
+			for(var offset = 0; offset < template.length-1;){
+				
+				var startIndex = template.indexOf(start,offset);
+				
+				if(startIndex >= 0){
+					var prefix = template.substring(offset,startIndex);
+					scripts.push('_resu_lt.push(\''+esc(prefix)+'\');');
+					var endIndex = template.indexOf(end,startIndex);
+					if(endIndex >=0 ){
+						var quoteData = template.substring(startIndex + start.length,endIndex);
+					
+						offset = endIndex + end.length;
+						if(quoteData.indexOf('=') === 0){
+							scripts.push('_resu_lt.push('+quoteData.substr(1)+');');
+						} else {
+							scripts.push(quoteData);
+						}
+						continue;
+					}
+				}
+				scripts.push('_resu_lt.push(\''+esc(template.substring(offset))+'\');');
+				offset = template.length;	
+			}
+			scripts.push('};\nreturn _resu_lt.join("");');
+			return scripts.join('');
+		}
 //>>excludeEnd('excludeTpl')
 
 	define(function () {
@@ -180,9 +192,6 @@
 					}
 					content = strip ? tpl.strip(content) : content;
 					
-					// store URL, makes debugging of template errors easier
-					content.url = url;
-					
 					if (config.isBuild && config.inlineText) {
 						buildMap[name] = content;
 					}
@@ -193,16 +202,14 @@
 
 			write: function (pluginName, moduleName, write) {
 				if (moduleName in buildMap) {
-					var content = tpl.jsEscape(buildMap[moduleName]);
+					var content = buildMap[moduleName];
 					write("define('" + pluginName + "!" + moduleName  +
   						"', function() {return function(obj) { " +
-  							content.replace(/(\\')/g, "'").replace(/(\\\\)/g, "\\")+
+  							content+
   						"}});\n");
 				}
 			}
 		};
-//>>excludeEnd('excludeTpl')
 		return function() {};	
 	});
-//>>excludeEnd('excludeTpl')
 }());
